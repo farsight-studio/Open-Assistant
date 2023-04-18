@@ -4,9 +4,7 @@ import pydantic
 
 
 def split_keys_string(keys: str | None):
-    if not keys:
-        return []
-    return list(filter(bool, keys.split(",")))
+    return list(filter(bool, keys.split(","))) if keys else []
 
 
 class Settings(pydantic.BaseSettings):

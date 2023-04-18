@@ -92,9 +92,12 @@ def get_safety_opinion(prompt: str, safety_opinion: str, safety_level: int):
     label, rots = safety_opinion[0], "and".join([x.strip(".") for x in safety_opinion[1:]])
     label = label.replace("<pad>", "").strip()
 
-    if "caution" in label and safety_level > 1:
-        return prepare_safe_prompt(prompt, label, rots)
-    elif "intervention" in label and safety_level > 0:
+    if (
+        "caution" in label
+        and safety_level > 1
+        or "intervention" in label
+        and safety_level > 0
+    ):
         return prepare_safe_prompt(prompt, label, rots)
     else:
         return prompt
@@ -226,8 +229,7 @@ def get_inference_server_stream_events(request: interface.GenerateStreamRequest)
             raise RuntimeError(f"Error from inference server: {event.data}")
         if event.event == "ping":
             continue
-        stream_response = interface.GenerateStreamResponse.parse_raw(event.data)
-        yield stream_response
+        yield interface.GenerateStreamResponse.parse_raw(event.data)
 
 
 def perform_oom_test(tokenizer: transformers.PreTrainedTokenizer):
@@ -267,7 +269,7 @@ def perform_oom_test(tokenizer: transformers.PreTrainedTokenizer):
 
     with futures.ThreadPoolExecutor() as executor:
         try:
-            for batch_size in range(1, 32, 1):
+            for batch_size in range(1, 32):
                 prompt_ids = tokenizer.encode(prompt, max_length=length - 4, truncation=True)
                 short_prompt = tokenizer.decode(prompt_ids)
                 stream_request = interface.GenerateStreamRequest(

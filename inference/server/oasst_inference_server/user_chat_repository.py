@@ -32,8 +32,7 @@ class UserChatRepository(pydantic.BaseModel):
                 sqlalchemy.orm.selectinload(models.DbChat.messages).selectinload(models.DbMessage.reports),
             )
 
-        chat = (await self.session.exec(query)).one()
-        return chat
+        return (await self.session.exec(query)).one()
 
     async def get_message_by_id(self, chat_id: str, message_id: str) -> models.DbMessage:
         query = (
@@ -50,8 +49,7 @@ class UserChatRepository(pydantic.BaseModel):
                 models.DbChat.user_id == self.user_id,
             )
         )
-        message = (await self.session.exec(query)).one()
-        return message
+        return (await self.session.exec(query)).one()
 
     async def create_chat(self) -> models.DbChat:
         chat = models.DbChat(user_id=self.user_id)
