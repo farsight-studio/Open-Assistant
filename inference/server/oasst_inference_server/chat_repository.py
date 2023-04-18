@@ -23,8 +23,7 @@ class ChatRepository(pydantic.BaseModel):
             .options(sqlalchemy.orm.selectinload(models.DbMessage.reports))
             .where(models.DbMessage.id == message_id, models.DbMessage.role == "assistant")
         )
-        message = (await self.session.exec(query)).one()
-        return message
+        return (await self.session.exec(query)).one()
 
     async def start_work(
         self, *, message_id: str, worker_id: str, worker_config: inference.WorkerConfig

@@ -88,10 +88,11 @@ class GPTNeoXRewardModel(GPTNeoXPreTrainedModel):
 
         logits = self.out_proj(pooled)
 
-        if not return_dict:
-            return (logits,) + outputs[1:]
-
-        return GPTNeoXRewardModelOutput(logits=logits)
+        return (
+            GPTNeoXRewardModelOutput(logits=logits)
+            if return_dict
+            else (logits,) + outputs[1:]
+        )
 
 
 AutoConfig.register("gpt_neox_reward_model", GPTNeoXRewardModelConfig)

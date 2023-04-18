@@ -79,11 +79,7 @@ if __name__ == "__main__":
                     pad_token_id=tokenizer.eos_token_id,
                 )
 
-            if out[0][-1] == tokenizer.eos_token_id:
-                response = out[0][:-1]
-            else:
-                response = out[0]
-
+            response = out[0][:-1] if out[0][-1] == tokenizer.eos_token_id else out[0]
             response = tokenizer.decode(out[0]).split(QA_SPECIAL_TOKENS["Answer"])[-1]
             print(f"Bot: {response}")
             conversation_history.append(response)

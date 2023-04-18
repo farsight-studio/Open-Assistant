@@ -51,7 +51,7 @@ def index_trivia_qa_context(example):
         context = ""
     answer = example["answer"]["aliases"][np.random.randint(len(example["answer"]["aliases"]))]
 
-    return context + " " + question, answer
+    return f"{context} {question}", answer
 
 
 def index_adversarial_qa(example):
@@ -83,10 +83,10 @@ def index_eli5(example):
 
 
 def index_gsm_hard(example):
-    return example[
-        "input"
-    ] + "\nWrite a small snippet of python code to answer this", "Here's the code solution to the question\n```python\n{}\n```\n The answer should be {}".format(
-        example["code"].strip(), example["target"]
+    return (
+        example["input"]
+        + "\nWrite a small snippet of python code to answer this",
+        f"""Here's the code solution to the question\n```python\n{example["code"].strip()}\n```\n The answer should be {example["target"]}""",
     )
 
 
@@ -145,26 +145,25 @@ class QADataset(Dataset):
 
     def __init__(self, dataset, cache_dir, split):
         self.no_val = False
-        if dataset in self.DATASET_FORMAT_MAPPING:
-            context = self.DATASET_FORMAT_MAPPING[dataset]
-            if split == "validation" and "validation" in context:
-                split = context["validation"]
-            if "name" not in context:
-                context["name"] = dataset
-            if "split_postfix" in context:
-                # append a postfix to split name, used in eli5 : test_eli5, test_asks, test_askh
-                split += context["split_postfix"]
-            if "params" not in context:
-                context["params"] = {"cache_dir": cache_dir, "split": split}
-            else:
-                context["params"]["cache_dir"] = cache_dir
-                context["params"]["split"] = split
-            if "no_val" in context:
-                self.no_val = True
-            self.index_fn = context["index_fn"]
-            self.dataset = load_dataset(context["name"], **context["params"])
+        if dataset not in self.DATASET_FORMAT_MAPPING:
+            raise ValueError(f"Unknown dataset : {dataset}")
+        context = self.DATASET_FORMAT_MAPPING[dataset]
+        if split == "validation" and "validation" in context:
+            split = context["validation"]
+        if "name" not in context:
+            context["name"] = dataset
+        if "split_postfix" in context:
+            # append a postfix to split name, used in eli5 : test_eli5, test_asks, test_askh
+            split += context["split_postfix"]
+        if "params" not in context:
+            context["params"] = {"cache_dir": cache_dir, "split": split}
         else:
-            raise ValueError("Unknown dataset : " + dataset)
+            context["params"]["cache_dir"] = cache_dir
+            context["params"]["split"] = split
+        if "no_val" in context:
+            self.no_val = True
+        self.index_fn = context["index_fn"]
+        self.dataset = load_dataset(context["name"], **context["params"])
         self.length = len(self.dataset)
 
     def __len__(self):
@@ -181,7 +180,7 @@ class WebGPT(Dataset):
     def __init__(self, mode: str = "sft", max_answers: int = 5) -> None:
         super().__init__()
         self.mode = mode
-        assert mode in ("sft", "rm", "rl")
+        assert mode in {"sft", "rm", "rl"}
 
         dataset = load_dataset("openai/webgpt_comparisons")
 
@@ -225,12 +224,7 @@ class SODA(Dataset):
 
     def process_soda_convo(self, data: dict[str, Any], input_max_length: int) -> list[list[str]] | None:
         play_as = data["speakers"][1]
-        dialogue_bg = "{}{}".format(
-            # QA_SPECIAL_TOKENS["StartPrefix"],
-            data["narrative"],
-            " You are {}.".format(play_as),
-            # QA_SPECIAL_TOKENS["EndPrefix"],
-        )
+        dialogue_bg = f'{data["narrative"]} You are {play_as}.'
 
         # Perform some sanity checks, if these fail return None
         # ignore data with more than 2 speakers for now
@@ -245,9 +239,7 @@ class SODA(Dataset):
             # add dialog background to first question.
             # [Q1, A1, Q2, A2] -> [B + Q1, A1, Q2, A2]
             data["dialogue"][0] = f"{dialogue_bg} {data['dialogue'][0]}"
-            # Use only input_max_length characters
-            truncated_dialogue = [k[:input_max_length] for k in data["dialogue"]]
-            return truncated_dialogue
+            return [k[:input_max_length] for k in data["dialogue"]]
 
     def __init__(self, cache_dir, mode="sft", input_max_length=1024) -> None:
         super().__init__()
@@ -268,11 +260,11 @@ class SODA(Dataset):
 
     def __getitem__(self, index) -> list[str] | tuple[str]:
         # special token added during preprocess
-        if self.mode == "sft":
-            return self.pairs[index]
-        elif self.mode == "rl":
+        if self.mode == "rl":
             # add prefix + first human question
-            return (self.pairs[index][0] + " " + self.pairs[index][1],)
+            return (f"{self.pairs[index][0]} {self.pairs[index][1]}", )
+        elif self.mode == "sft":
+            return self.pairs[index]
 
 
 class SODADialogue(Dataset):
@@ -301,7 +293,9 @@ class SODADialogue(Dataset):
                 self.pairs.append(question_answer_pairs)
 
         if verbose:
-            print("For SODA dialogue dataset found {} faults within the total {} dialogs".format(faulty, len(self)))
+            print(
+                f"For SODA dialogue dataset found {faulty} faults within the total {len(self)} dialogs"
+            )
 
     def __len__(self):
         return len(self.pairs)
@@ -336,7 +330,7 @@ class JokeExplaination(Dataset):
                 explanation = data["explaination"]
                 self.pairs.append((joke, explanation))
 
-        if len(question) > 0 and len(answer) > 0:
+        if question != "" and answer != "":
             self.pairs.append((question, answer))
         self.length = len(self.pairs)
 
@@ -390,12 +384,7 @@ class TranslatedQA(Dataset):
                             self.pairs.append(("", human, answer))
 
                         # Does this make sense?
-                        prefix += "{}{}{}{}".format(
-                            "Question:",
-                            convo_round["human"],
-                            "Answer:",
-                            convo_round["answer"],
-                        )
+                        prefix += f'Question:{convo_round["human"]}Answer:{convo_round["answer"]}'
 
         self.length = len(self.pairs)
 
@@ -508,8 +497,7 @@ class Vicuna(Dataset):
 
         if role is not None and len(messages) > 0:
             dialogue.append("\n".join(messages))
-        dialogue_truncated = [k[:input_max_length] for k in dialogue]
-        return dialogue_truncated
+        return [k[:input_max_length] for k in dialogue]
 
     def __init__(self, cache_dir: str | Path, mode: str = "sft", input_max_length: int = 2048) -> None:
         super().__init__()
